@@ -1,26 +1,220 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf3e7;
+  --foreground: #1a1a1a;
+  --accent: #f5a623; /* Spanish: warm amber */
+  --accent-soft: #ffe9bd;
+}
+
+[data-lang="fr"] {
+  --accent: #2b5be3;
+  --accent-soft: #dbe4ff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fredoka);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme {
+  /* candy palette */
+  --color-cream: #faf3e7;
+  --color-paper: #fffaf0;
+  --color-ink: #1a1a1a;
+  --color-ink-soft: #4a4437;
+  --color-sun: #ffd43b;
+  --color-sun-deep: #f5a623;
+  --color-coral: #ff8a65;
+  --color-coral-deep: #f4511e;
+  --color-tang: #ff9f1c;
+  --color-skyc: #7cc6fe;
+  --color-skyc-deep: #2b8fd9;
+  --color-grape: #b388ff;
+  --color-grape-deep: #7c4dff;
+  --color-limey: #b2e061;
+  --color-limey-deep: #7cb518;
+  --color-mint: #7ae0c3;
+  --color-blush: #ffc4d6;
+  --color-midnight: #1c1830;
+  --color-midnight-soft: #2e2850;
+
+  --shadow-pop: 4px 4px 0 0 #1a1a1a;
+  --shadow-pop-sm: 2.5px 2.5px 0 0 #1a1a1a;
+  --shadow-pop-lg: 7px 7px 0 0 #1a1a1a;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ---------- display type helper ---------- */
+.font-display {
+  font-family: var(--font-fredoka), var(--font-geist-sans), sans-serif;
+}
+
+/* ---------- tilted cards (rotate property so rotate-0 utilities override) ---------- */
+@layer components {
+  .card-tilt {
+    rotate: var(--tilt, 0deg);
+  }
+}
+
+/* ---------- press-down button feel ---------- */
+.btn-pop {
+  border: 2px solid #1a1a1a;
+  box-shadow: var(--shadow-pop);
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease;
+}
+.btn-pop:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 0 #1a1a1a;
+}
+.btn-pop:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 0 #1a1a1a;
+}
+
+.card-pop {
+  border: 2px solid #1a1a1a;
+  box-shadow: var(--shadow-pop);
+}
+
+/* ---------- marquee ---------- */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-marquee {
+  animation: marquee 22s linear infinite;
+}
+
+/* ---------- floaty doodles ---------- */
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--tilt, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--tilt, 0deg));
+  }
+}
+.animate-floaty {
+  animation: floaty 4s ease-in-out infinite;
+}
+@keyframes floaty-drift {
+  0% {
+    transform: translate(0, 0) rotate(var(--tilt, 0deg));
+  }
+  25% {
+    transform: translate(8px, -12px) rotate(calc(var(--tilt, 0deg) + 4deg));
+  }
+  50% {
+    transform: translate(-4px, -18px) rotate(var(--tilt, 0deg));
+  }
+  75% {
+    transform: translate(-10px, -6px) rotate(calc(var(--tilt, 0deg) - 4deg));
+  }
+  100% {
+    transform: translate(0, 0) rotate(var(--tilt, 0deg));
+  }
+}
+.animate-drift {
+  animation: floaty-drift 9s ease-in-out infinite;
+}
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin-slow {
+  animation: spin-slow 14s linear infinite;
+}
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+.animate-wiggle {
+  animation: wiggle 0.9s ease-in-out infinite;
+}
+
+/* ---------- shake (wrong answer) ---------- */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(8px);
+  }
+  60% {
+    transform: translateX(-5px);
+  }
+  80% {
+    transform: translateX(5px);
+  }
+}
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* ---------- pop-in (correct answer) ---------- */
+@keyframes pop-in {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.animate-pop-in {
+  animation: pop-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---------- awning stripes (language-tinted) ---------- */
+.awning {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--accent) 0 26px,
+    var(--background) 26px 52px
+  );
+  border-bottom: 2px solid #1a1a1a;
+}
+
+/* scallop edge under the awning */
+.scallops {
+  --r: 9px;
+  height: var(--r);
+  background: radial-gradient(circle at 50% 0, var(--accent) var(--r), transparent calc(var(--r) + 0.5px));
+  background-size: calc(var(--r) * 2) var(--r);
+  background-repeat: repeat-x;
 }

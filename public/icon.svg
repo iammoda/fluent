@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect x="14" y="14" width="484" height="484" rx="120" fill="#ffd43b" stroke="#1a1a1a" stroke-width="22"/>
+  <text x="238" y="360" font-family="Georgia, serif" font-style="italic" font-size="300" font-weight="bold" fill="#1a1a1a" text-anchor="middle">f</text>
+  <path d="M388 96l17 36 38 6-28 27 7 39-34-19-34 19 7-39-28-27 38-6z" fill="#fffaf0" stroke="#1a1a1a" stroke-width="14" stroke-linejoin="round"/>
+</svg>

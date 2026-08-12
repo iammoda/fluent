@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local database
+data/
+
+# playwright artifacts
+.playwright-mcp/
+
+# keep the env template
+!.env.example
