@@ -165,3 +165,12 @@ export const candoChecks = sqliteTable("cando_checks", {
   key: text("key").notNull(), // e.g. 'a1_order_food'
   checkedAt: integer("checked_at").notNull(),
 });
+
+/** input_logs — self-logged external comprehensible input (minutes) */
+export const inputLogs = sqliteTable("input_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  lang: text("lang").notNull().default("es"),
+  minutes: integer("minutes").notNull(),
+  source: text("source"),
+  createdAt: integer("created_at").notNull(),
+});

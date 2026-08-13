@@ -97,6 +97,44 @@ function Sentence({
   );
 }
 
+function LootButton({ word, gloss, storyTitle }: { word: string; gloss: string; storyTitle: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "done" | "dupe">("idle");
+  const capture = async () => {
+    if (state !== "idle") return;
+    setState("busy");
+    try {
+      const draftRes = await fetch("/api/lexicon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "draft", text: word, note: `${gloss} — from story "${storyTitle}"` }),
+      });
+      const { draft } = await draftRes.json();
+      if (!draft) throw new Error("draft failed");
+      // keyless mock leaves gloss placeholder — patch it with the story's own gloss
+      if (draft.en.includes("mock mode")) draft.en = gloss;
+      const saveRes = await fetch("/api/lexicon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save", draft }),
+      });
+      const saved = await saveRes.json();
+      setState(saved.duplicate ? "dupe" : "done");
+    } catch {
+      setState("idle");
+    }
+  };
+  return (
+    <button
+      onClick={capture}
+      disabled={state !== "idle"}
+      className="ml-1.5 font-bold"
+      title={state === "done" ? "banked!" : state === "dupe" ? "already in your deck" : "add to my deck"}
+    >
+      {state === "done" ? "✓" : state === "dupe" ? "≡" : state === "busy" ? "…" : "＋"}
+    </button>
+  );
+}
+
 function Question({ q, a, ttsLang }: { q: string; a: string; ttsLang: string }) {
   const [revealed, setRevealed] = useState(false);
   return (
@@ -270,11 +308,13 @@ export default function StoryReader({
           {story.content.new_words.length > 0 && (
             <section className="mt-8">
               <h2 className="font-display text-xl font-bold">loot drops ✨</h2>
+              <p className="mt-1 text-xs text-ink-soft">tap ＋ to bank a word — it jumps tomorrow&apos;s drill queue</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {story.content.new_words.map((w, i) => (
                   <Sticker key={w.es} color={i % 2 === 0 ? "sun" : "mint"} tilt={i % 2 === 0 ? -2 : 2} className="text-sm normal-case">
                     <button onClick={() => speak(w.es, { lang: ttsLang })} className="mr-1">🔊</button>
                     <b>{w.es}</b> · {w.en}
+                    <LootButton word={w.es} gloss={w.en} storyTitle={story.title} />
                   </Sticker>
                 ))}
               </div>

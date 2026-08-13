@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { items, prompts, srsStates } from "@/db/schema";
 import { activeLang, LANG_META } from "@/lib/lang";
 import { complete, extractJson, activeProvider } from "@/lib/llm";
+import { normLoose } from "@/lib/grading";
 
 export const dynamic = "force-dynamic";
 
@@ -32,16 +33,21 @@ export async function POST(req: Request) {
 
   try {
     if (body.action === "draft") {
-      const input = String(body.text ?? "").trim().slice(0, 120);
+      const input = String(body.text ?? "").trim().slice(0, 160);
       if (!input) return NextResponse.json({ error: "empty" }, { status: 400 });
-      const note = String(body.note ?? "").trim().slice(0, 200);
+      const note = String(body.note ?? "").trim().slice(0, 240);
+      const debrief = body.mode === "debrief"; // "I couldn't say X" — input is ENGLISH
       const langName = LANG_META[lang].name;
 
-      const system = `You turn a ${langName} word or chunk a learner encountered into a drill item for an A1-A2 English speaker. Strict JSON only.`;
+      const system = debrief
+        ? `A learner just finished a ${langName} conversation and reports something they WANTED to say but couldn't. Turn it into a drill item: the simplest natural ${langName} way to express it, at A1-A2 level. Strict JSON only.`
+        : `You turn a ${langName} word or chunk a learner encountered into a drill item for an A1-A2 English speaker. Strict JSON only.`;
       const user = [
-        `Word/chunk the learner encountered: "${input}"`,
+        debrief
+          ? `The learner couldn't say (English): "${input}"`
+          : `Word/chunk the learner encountered: "${input}"`,
         note ? `Context note: ${note}` : "",
-        `Produce: {"canonical": string (corrected/canonical ${langName} form), "en": string (short gloss), "prompts": [1-2 of {"promptType":"en_cue","promptText":string (natural English sentence cue),"expected":string (short full ${langName} sentence using the chunk),"accepted":[string] (generous variants${lang === "es" ? ", with/without subject pronouns" : ", il/elle/on variants, elisions"})}]}`,
+        `Produce: {"canonical": string (${debrief ? `the ${langName} chunk that expresses it` : `corrected/canonical ${langName} form`}), "en": string (short gloss), "prompts": [1-2 of {"promptType":"en_cue","promptText":string (natural English sentence cue),"expected":string (short full ${langName} sentence using the chunk),"accepted":[string] (generous variants${lang === "es" ? ", with/without subject pronouns" : ", il/elle/on variants, elisions"})}]}`,
         `Keep sentences ≤ 9 words, everyday register.`,
       ]
         .filter(Boolean)
@@ -70,6 +76,17 @@ export async function POST(req: Request) {
       const d = body.draft as LexDraft;
       if (!d?.canonical?.trim() || !d?.en?.trim() || !Array.isArray(d.prompts) || d.prompts.length === 0) {
         return NextResponse.json({ error: "incomplete draft" }, { status: 400 });
+      }
+      // dedupe: never create a second item for the same form
+      const canonNorm = normLoose(d.canonical);
+      const existing = db
+        .select({ id: items.id, es: items.es })
+        .from(items)
+        .where(eq(items.lang, lang))
+        .all()
+        .find((r) => normLoose(r.es) === canonNorm);
+      if (existing) {
+        return NextResponse.json({ itemId: existing.id, duplicate: true });
       }
       const [row] = db
         .insert(items)

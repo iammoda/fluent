@@ -5,6 +5,8 @@ import { attempts, items, prompts, srsStates, sessions } from "@/db/schema";
 import { gradeAnswer } from "@/lib/grading";
 import { classifyError, type FormIndex, type FormInfo, ERROR_LABELS, type ErrorType } from "@/lib/taxonomy";
 import { newCard, reviveCard, serializeCard, ratingFor, applyRating } from "@/lib/fsrs";
+import { complete, extractJson, activeProvider } from "@/lib/llm";
+import { Rating } from "ts-fsrs";
 import { normLoose } from "@/lib/grading";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +100,7 @@ export async function POST(req: Request) {
   }
 
   // ---- Log the attempt (verbatim answer) ----------------------------------
-  db.insert(attempts)
+  const [attemptRow] = db.insert(attempts)
     .values({
       sessionId: body.sessionId,
       lang: item.lang,
@@ -114,13 +116,15 @@ export async function POST(req: Request) {
       helpUsed,
       createdAt: Date.now(),
     })
-    .run();
+    .returning({ id: attempts.id })
+    .all();
 
   if (body.end && body.sessionId != null) {
     db.update(sessions).set({ endedAt: Date.now() }).where(eq(sessions.id, body.sessionId)).run();
   }
 
   return NextResponse.json({
+    attemptId: attemptRow.id,
     correct,
     expected: prompt.expected,
     errorType,
@@ -128,4 +132,65 @@ export async function POST(req: Request) {
     itemEs: item.es,
     itemEn: item.en,
   });
+}
+
+/**
+ * PATCH /api/attempt — "I was right" override.
+ * With an LLM key: adjudicated first. Keyless: trusted (it's your app).
+ * Accepted answer is added to the prompt so it never mis-grades again;
+ * the attempt flips to correct and FSRS gets a corrective Good review.
+ */
+export async function PATCH(req: Request) {
+  const { attemptId } = await req.json();
+  const attempt = db.select().from(attempts).where(eq(attempts.id, Number(attemptId))).all()[0];
+  if (!attempt) return NextResponse.json({ error: "attempt not found" }, { status: 404 });
+  if (attempt.correct === 1) return NextResponse.json({ accepted: true, reason: "already correct" });
+  if (!attempt.userAnswer.trim()) return NextResponse.json({ accepted: false, reason: "Nothing was answered — reveals can't be overridden." });
+
+  const prompt = db.select().from(prompts).where(eq(prompts.id, attempt.promptId)).all()[0];
+  if (!prompt) return NextResponse.json({ error: "prompt not found" }, { status: 404 });
+
+  // adjudicate when a real LLM is available
+  if (activeProvider() !== "mock") {
+    try {
+      const verdict = extractJson<{ valid: boolean; reason: string }>(
+        await complete({
+          system: "You judge whether a language learner's answer is an acceptable alternative. Be fair: accept natural, grammatical variants; reject actual errors. Strict JSON only.",
+          user: `Exercise prompt: "${prompt.promptText}"\nExpected answer: "${prompt.expected}"\nLearner's answer: "${attempt.userAnswer}"\nIs the learner's answer a valid, grammatical way to satisfy the prompt? Output {"valid": boolean, "reason": string (one short sentence)}`,
+        }),
+      );
+      if (!verdict.valid) {
+        return NextResponse.json({ accepted: false, reason: verdict.reason });
+      }
+    } catch {
+      /* adjudicator down -> fall through and trust the learner */
+    }
+  }
+
+  // add to accepted list permanently
+  const accepted = JSON.parse(prompt.accepted) as string[];
+  db.update(prompts)
+    .set({ accepted: JSON.stringify([...new Set([...accepted, attempt.userAnswer.trim()])]) })
+    .where(eq(prompts.id, prompt.id))
+    .run();
+
+  // flip the attempt
+  db.update(attempts)
+    .set({ correct: 1, errorType: null })
+    .where(eq(attempts.id, attempt.id))
+    .run();
+
+  // corrective FSRS review (the Again scheduling was wrong)
+  const srs = db
+    .select()
+    .from(srsStates)
+    .where(and(eq(srsStates.itemId, attempt.itemId), eq(srsStates.direction, "productive")))
+    .all()[0];
+  if (srs) {
+    const next = applyRating(reviveCard(srs.card), Rating.Good);
+    const ser = serializeCard(next);
+    db.update(srsStates).set({ card: ser.json, due: ser.due }).where(eq(srsStates.id, srs.id)).run();
+  }
+
+  return NextResponse.json({ accepted: true, reason: "Added to accepted answers — this will never mis-grade again." });
 }

@@ -6,6 +6,8 @@ import { questBoard, dueSample, xp, curriculumBanner } from "@/lib/today";
 import { Card, ButtonLink, Sticker, ProgressBar } from "@/components/ui";
 import Marquee from "@/components/Marquee";
 import { Ufo, Star, Spark, DoodleField, EMOJI_SETS } from "@/components/Doodles";
+import InputBlock from "./InputBlock";
+import { INPUT_SOURCES } from "@/lib/input-sources";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +98,10 @@ export default async function TodayPage() {
             </Card>
           </Link>
         )}
-        {blocks.map((b, i) => (
+        {blocks.map((b, i) =>
+          b.key === "input" ? (
+            <InputBlock key={b.key} block={b} sources={INPUT_SOURCES[lang]} tilt={i % 2 === 0 ? -0.6 : 0.6} />
+          ) : (
           <Link key={b.key} href={b.href} className="group block">
             <Card
               color={b.color}
@@ -129,7 +134,8 @@ export default async function TodayPage() {
               )}
             </Card>
           </Link>
-        ))}
+          ),
+        )}
       </section>
 
       {/* right column */}

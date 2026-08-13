@@ -4,7 +4,7 @@
  */
 import { and, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { attempts, items, outputTasks, retells, sessions, srsStates, stories } from "@/db/schema";
+import { attempts, inputLogs, items, outputTasks, retells, sessions, srsStates, stories } from "@/db/schema";
 import { dueCount, newCount } from "@/lib/planner";
 import { curriculumState } from "@/lib/factory";
 import type { Lang } from "@/lib/lang";
@@ -15,7 +15,7 @@ export interface QuestBlock {
   sub: string;
   emoji: string;
   href: string;
-  color: "sun" | "coral" | "grape" | "tang" | "midnight";
+  color: "sun" | "coral" | "grape" | "tang" | "midnight" | "mint";
   done: boolean;
   minutes: number;
 }
@@ -76,6 +76,13 @@ export function questBoard(lang: Lang): { blocks: QuestBlock[]; next: QuestBlock
       .where(and(gte(retells.createdAt, midnight), eq(retells.lang, lang)))
       .all()[0]?.c ?? 0;
 
+  const inputToday =
+    db
+      .select({ m: sql<number>`coalesce(sum(${inputLogs.minutes}), 0)` })
+      .from(inputLogs)
+      .where(and(gte(inputLogs.createdAt, midnight), eq(inputLogs.lang, lang)))
+      .all()[0]?.m ?? 0;
+
   const speedToday =
     db
       .select({ c: sql<number>`count(*)` })
@@ -126,6 +133,16 @@ export function questBoard(lang: Lang): { blocks: QuestBlock[]; next: QuestBlock
       color: "tang",
       done: retellToday > 0 || speedToday > 0,
       minutes: 8,
+    },
+    {
+      key: "input",
+      title: "Real input",
+      sub: inputToday > 0 ? `${inputToday} min logged today` : "20 min of real content — the volume strand",
+      emoji: "📺",
+      href: "#input",
+      color: "mint",
+      done: inputToday >= 15,
+      minutes: 20,
     },
     {
       key: "cast",

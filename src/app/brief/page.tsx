@@ -7,6 +7,7 @@ import { ERROR_LABELS, ERROR_TIPS, type ErrorType } from "@/lib/taxonomy";
 import { activeLang, LANG_META } from "@/lib/lang";
 import { Card, Sticker } from "@/components/ui";
 import { DoodleField, EMOJI_SETS } from "@/components/Doodles";
+import DebriefCapture from "./DebriefCapture";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,10 @@ export default async function BriefPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="mt-8">
+        <DebriefCapture langName={LANG_META[lang].name} />
       </section>
     </div>
   );

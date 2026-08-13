@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, desc, eq, gt, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { attempts, items, retells, srsStates } from "@/db/schema";
+import { attempts, inputLogs, items, retells, srsStates } from "@/db/schema";
 import { reviveCard } from "@/lib/fsrs";
 import { activeLang, LANG_META } from "@/lib/lang";
 import { getActiveWeaknesses } from "@/lib/planner";
@@ -174,6 +174,13 @@ export default async function StatsPage({
       .where(and(eq(srsStates.direction, "productive"), eq(items.lang, lang)))
       .all()[0]?.c ?? 0;
 
+  const inputWeek =
+    db
+      .select({ m: sql<number>`coalesce(sum(${inputLogs.minutes}), 0)` })
+      .from(inputLogs)
+      .where(and(gte(inputLogs.createdAt, Date.now() - 7 * DAY), eq(inputLogs.lang, lang)))
+      .all()[0]?.m ?? 0;
+
   const last50 = db
     .select({ correct: attempts.correct })
     .from(attempts)
@@ -214,8 +221,8 @@ export default async function StatsPage({
         <Stat value={tracked} label="items in training" color="sky" tilt={0.8} />
         <Stat value={accNow === null ? "—" : `${accNow}%`} label="accuracy (last 50)" color="lime" tilt={-0.6} />
         <Stat
-          value={wpmTrend.length > 0 ? `${wpmTrend[wpmTrend.length - 1]}` : "—"}
-          label="latest retell wpm"
+          value={wpmTrend.length > 0 ? `${wpmTrend[wpmTrend.length - 1]}` : `${inputWeek}m`}
+          label={wpmTrend.length > 0 ? "latest retell wpm" : "real input this week"}
           color="blush"
           tilt={1}
         />

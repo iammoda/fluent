@@ -22,6 +22,7 @@ interface QueueItem {
 }
 
 interface Feedback {
+  attemptId?: number;
   correct: boolean;
   expected: string;
   errorType: string | null;
@@ -80,6 +81,29 @@ export default function SessionRunner({ tts = "es-MX" }: { tts?: string }) {
   // successive relearning: attempts per prompt this session (max 3 => 2 re-queues)
   const attemptCounts = useRef<Map<number, number>>(new Map());
   const [relearns, setRelearns] = useState(0);
+  const [overrideMsg, setOverrideMsg] = useState<string | null>(null);
+  const [overriding, setOverriding] = useState(false);
+
+  const claimRight = async () => {
+    if (!feedback?.attemptId || overriding) return;
+    setOverriding(true);
+    const res = await fetch("/api/attempt", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attemptId: feedback.attemptId }),
+    });
+    const d = await res.json();
+    if (d.accepted) {
+      sfx.correct();
+      setFeedback((f) => (f ? { ...f, correct: true, errorType: null, errorLabel: null } : f));
+      setRecords((r) => r.map((rec, i) => (i === r.length - 1 ? { ...rec, correct: true, errorType: null } : rec)));
+      setCombo((c) => c + 1);
+      setOverrideMsg(null);
+    } else {
+      setOverrideMsg(d.reason ?? "adjudicator disagreed");
+    }
+    setOverriding(false);
+  };
 
   const speech = useSpeech(tts);
 
@@ -200,6 +224,7 @@ export default function SessionRunner({ tts = "es-MX" }: { tts?: string }) {
   const next = useCallback(() => {
     setFeedback(null);
     setAnswer("");
+    setOverrideMsg(null);
     spokenLatency.current = null;
     answeredBySpeech.current = false;
     setIdx((i) => i + 1);
@@ -457,6 +482,18 @@ export default function SessionRunner({ tts = "es-MX" }: { tts?: string }) {
                   <div className="mt-2 text-sm text-ink-soft">
                     {feedback.itemEs} · {feedback.itemEn}
                   </div>
+                  {!feedback.correct && feedback.attemptId && answer.trim() !== "" && (
+                    <div className="mt-2">
+                      <button
+                        onClick={claimRight}
+                        disabled={overriding}
+                        className="font-display text-sm font-semibold underline decoration-dotted hover:text-limey-deep disabled:opacity-50"
+                      >
+                        🙋 I was right — accept my answer
+                      </button>
+                      {overrideMsg && <p className="mt-1 text-xs text-ink-soft">⚖️ {overrideMsg}</p>}
+                    </div>
+                  )}
                 </div>
                 <Button color="sun" className="mt-4 w-full" onClick={next}>
                   next ⏎

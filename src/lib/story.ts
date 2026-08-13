@@ -79,9 +79,27 @@ function gatherLearnerState(lang: Lang): LearnerState {
 const systemFor = (lang: Lang) =>
   `You are a ${LANG_META[lang].name} content generator inside a personal language-learning app for an English-speaking absolute beginner (A1). You write tiny serial stories with recurring characters ${LANG_META[lang].characters}, set in everyday situations. You follow vocabulary constraints exactly and you only ever output strict JSON.`;
 
-function buildUserPrompt(state: LearnerState, topic: string | null, retryMissing?: string[]) {
+function previousEpisodeRecap(lang: Lang): string | null {
+  const prev = latestStory(lang);
+  if (!prev) return null;
+  try {
+    const content = JSON.parse(prev.content) as StoryContent;
+    const summary = content.sentences.map((s) => s.en).join(" ").slice(0, 500);
+    return `"${prev.title}": ${summary}`;
+  } catch {
+    return null;
+  }
+}
+
+function buildUserPrompt(state: LearnerState, topic: string | null, recap: string | null, retryMissing?: string[]) {
   const lines: string[] = [];
   lines.push(`Write the next episode of the serial story.`);
+  if (recap) {
+    lines.push(`PREVIOUS EPISODE (English summary): ${recap}`);
+    lines.push(
+      `Continue the same world: same recurring characters, reference or resolve one thread from last episode, and END on a light hook that makes tomorrow's episode inviting. Open with ONE short "previously..." style sentence in the target language.`,
+    );
+  }
   lines.push(`Topic: ${topic || "everyday life"}.`);
   lines.push(``);
   lines.push(`HARD CONSTRAINTS:`);
@@ -152,9 +170,10 @@ function missingTargets(content: StoryContent, targetForms: { es: string }[]): s
 export async function generateStory(lang: Lang, topic: string | null) {
   const state = gatherLearnerState(lang);
   const system = systemFor(lang);
+  const recap = previousEpisodeRecap(lang);
 
   let content = extractJson<StoryContent>(
-    await complete({ system, user: buildUserPrompt(state, topic) }),
+    await complete({ system, user: buildUserPrompt(state, topic, recap) }),
   );
   let missing = missingTargets(content, state.targetForms);
 
@@ -162,7 +181,7 @@ export async function generateStory(lang: Lang, topic: string | null) {
     // one retry with the failure fed back
     try {
       const retry = extractJson<StoryContent>(
-        await complete({ system, user: buildUserPrompt(state, topic, missing) }),
+        await complete({ system, user: buildUserPrompt(state, topic, recap, missing) }),
       );
       const retryMissing = missingTargets(retry, state.targetForms);
       if (retryMissing.length < missing.length) {
